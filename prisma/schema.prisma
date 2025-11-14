@@ -1,0 +1,81 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions   Session[]
+  characters Character[]
+
+  @@map("users")
+}
+
+model Character {
+  id          String   @id @default(cuid())
+  name        String
+  voiceId     String
+  description String?
+  alignment   String // 'good', 'neutral', 'evil'
+  race        String
+  class       String
+  imageUrl    String?
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@index([userId])
+  @@map("characters")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  campaignName String
+  description  String?
+  date         DateTime @default(now())
+  userId       String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@index([userId])
+  @@index([isActive])
+  @@map("sessions")
+}
+
+model Message {
+  id          String   @id @default(cuid())
+  sessionId   String
+  characterId String?
+  type        String // 'narration', 'dialogue', 'action'
+  text        String
+  audioUrl    String?
+  timestamp   DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  session   Session    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  character Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId])
+  @@index([characterId])
+  @@index([timestamp])
+  @@map("messages")
+}

@@ -1,36 +1,174 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🎲 D&D Voicer
 
-## Getting Started
+Aplicação para adicionar vozes narradas aos personagens e histórias de Dungeons & Dragons usando o modelo Kokoro-82M TTS.
 
-First, run the development server:
+## ✨ Funcionalidades
 
+- 🎙️ **Geração de Voz**: Converte texto em áudio usando IA
+- 🎭 **Múltiplas Vozes**: Diferentes vozes para cada personagem
+- 📖 **Tipos de Mensagem**: Narração, diálogo e ações
+- 💾 **Cache de Áudio**: Reutiliza áudios já gerados
+- 🎨 **Interface Intuitiva**: Design moderno e responsivo
+- 📊 **Gerenciamento de Sessões**: Organize suas campanhas
+
+## 🚀 Tecnologias
+
+- **Next.js 14** - Framework React
+- **TypeScript** - Tipagem estática
+- **Tailwind CSS** - Estilização
+- **Prisma** - ORM para banco de dados
+- **Kokoro-82M** - Modelo de Text-to-Speech
+- **Hugging Face** - API de modelos de IA
+
+## 📦 Instalação
+
+### Pré-requisitos
+
+- Node.js 18+ 
+- Python 3.9+ (para uso local do modelo)
+- PostgreSQL (ou SQLite para desenvolvimento)
+
+### Passo a Passo
+
+1. **Clone o repositório**
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/matheusIACreator/D-D-Voicer.git
+cd D-D-Voicer
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. **Instale as dependências**
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. **Configure as variáveis de ambiente**
+```bash
+cp .env.example .env
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Edite o `.env` e adicione suas chaves:
+- `HUGGINGFACE_API_KEY`: Sua chave da API do Hugging Face
+- `DATABASE_URL`: URL do seu banco de dados
 
-## Learn More
+4. **Configure o banco de dados**
+```bash
+npm run db:push
+```
 
-To learn more about Next.js, take a look at the following resources:
+5. **Inicie o servidor de desenvolvimento**
+```bash
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Acesse: http://localhost:3000
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🎯 Uso Local do Modelo (Opcional)
 
-## Deploy on Vercel
+Para usar o modelo Kokoro localmente no seu Mac M2:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. **Instale as dependências Python**
+```bash
+pip3 install torch transformers torchaudio --break-system-packages
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+2. **Configure o `.env`**
+```env
+USE_LOCAL_TTS="true"
+```
+
+3. **Torne o script executável**
+```bash
+chmod +x scripts/kokoro_tts.py
+```
+
+## 🗂️ Estrutura do Projeto
+
+```
+dnd-voicer/
+├── src/
+│   ├── app/
+│   │   ├── api/
+│   │   │   └── tts/          # API de geração de TTS
+│   │   ├── campaign/         # Páginas de campanha
+│   │   └── page.tsx          # Home
+│   ├── components/           # Componentes React
+│   ├── lib/
+│   │   ├── kokoro/          # Cliente Kokoro
+│   │   ├── db/              # Prisma client
+│   │   └── utils/           # Utilitários
+│   └── types/               # TypeScript types
+├── public/
+│   └── audio/               # Áudios gerados
+├── prisma/
+│   └── schema.prisma        # Schema do banco
+└── scripts/
+    └── kokoro_tts.py        # Script Python TTS
+```
+
+## 🎮 Como Usar
+
+1. **Crie Personagens**: Adicione seus personagens com vozes específicas
+2. **Inicie uma Sessão**: Crie uma nova sessão de jogo
+3. **Adicione Mensagens**: 
+   - Escolha entre Narração, Diálogo ou Ação
+   - Selecione o personagem (para diálogos)
+   - Digite o texto
+   - Gere o áudio
+4. **Reproduza**: Ouça as mensagens com as vozes geradas
+
+## 🔧 Configuração de Vozes
+
+As vozes pré-configuradas estão em `src/lib/kokoro/voices.ts`:
+
+```typescript
+WARRIOR_DEEP: 'Guerreiro Profundo'
+WIZARD_OLD: 'Mago Ancião'
+CLERIC_SOFT: 'Clériga Gentil'
+NARRATOR: 'Narrador'
+// ... e mais
+```
+
+## 📝 Comandos Úteis
+
+```bash
+npm run dev          # Inicia servidor de desenvolvimento
+npm run build        # Build de produção
+npm run lint         # Lint do código
+npm run db:studio    # Abre Prisma Studio
+npm run db:push      # Sincroniza schema com banco
+```
+
+## 🐛 Troubleshooting
+
+### Erro 403 no Git Push
+```bash
+git credential-osxkeychain erase <<EOF
+host=github.com
+protocol=https
+
+EOF
+```
+
+### Modelo não carrega no Mac M2
+- Certifique-se de ter pelo menos 8GB de RAM livre
+- Use `USE_LOCAL_TTS="false"` para usar a API
+
+### Áudio não gera
+- Verifique sua chave do Hugging Face
+- Teste o endpoint: `curl http://localhost:3000/api/tts`
+
+## 🤝 Contribuindo
+
+Contribuições são bem-vindas! Sinta-se livre para abrir issues ou pull requests.
+
+## 📄 Licença
+
+MIT License - veja o arquivo LICENSE para detalhes.
+
+## 👨‍💻 Autor
+
+**Matheus** - [GitHub](https://github.com/matheusIACreator)
+
+---
+
+⭐ Se este projeto te ajudou, considere dar uma estrela!
