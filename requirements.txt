@@ -1,0 +1,24 @@
+# D&D Voicer - Python Requirements
+# Para uso local do modelo Kokoro-82M TTS com GPU NVIDIA
+
+# PyTorch com suporte CUDA (para RTX 3050)
+--extra-index-url https://download.pytorch.org/whl/cu118
+torch>=2.1.0
+torchaudio>=2.1.0
+
+# Transformers e ML
+transformers>=4.35.0
+accelerate>=0.25.0
+sentencepiece>=0.1.99
+
+# Audio Processing
+numpy>=1.24.0
+scipy>=1.10.0
+soundfile>=0.12.0
+
+# Utilities
+tqdm>=4.65.0
+
+# Optional - Para monitorar uso da GPU
+# nvitop
+# gpustat
