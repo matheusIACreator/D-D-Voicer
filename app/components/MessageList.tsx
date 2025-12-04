@@ -1,188 +1,312 @@
 'use client';
 
-// components/VoiceSelector.tsx
-import { useState } from 'react';
-import { VoiceConfig } from '@/types/rpg';
-import { getAllVoices, getVoicesByGender } from '@/lib/kokoro/voices';
-import { Play } from 'lucide-react';
+// components/MessageList.tsx
+import { useState, useEffect, useRef } from 'react';
+import { Message, Character } from '@/types/rpg';
+import { AudioPlayer } from './AudioPlayer';
+import { Loader2, User, BookOpen, Trash2, Copy, Check } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
-interface VoiceSelectorProps {
-  selectedVoiceId?: string;
-  onSelectVoice: (voiceId: string) => void;
-  filterGender?: 'male' | 'female' | 'neutral' | 'all';
+interface MessageListProps {
+  sessionId: string;
+  characters: Character[];
+  messages?: Message[];
+  onNewMessage?: (message: Message) => void;
+  onDeleteMessage?: (messageId: string) => void;
 }
 
-export function VoiceSelector({
-  selectedVoiceId,
-  onSelectVoice,
-  filterGender = 'all',
-}: VoiceSelectorProps) {
-  const [selectedFilter, setSelectedFilter] = useState<'all' | 'male' | 'female' | 'neutral'>(
-    filterGender
-  );
+export function MessageList({
+  sessionId,
+  characters,
+  messages: externalMessages,
+  onNewMessage,
+  onDeleteMessage
+}: MessageListProps) {
+  const [messages, setMessages] = useState<Message[]>(externalMessages || []);
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
 
-  const voices =
-    selectedFilter === 'all'
-      ? getAllVoices()
-      : getVoicesByGender(selectedFilter);
-
-  const genderLabels = {
-    all: 'Todas',
-    male: 'Masculinas',
-    female: 'Femininas',
-    neutral: 'Neutras',
+  // Auto-scroll suave
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const genderIcons = {
-    male: '♂️',
-    female: '♀️',
-    neutral: '⚪',
+  // Scroll quando novas mensagens chegam
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Sync com mensagens externas
+  useEffect(() => {
+    if (externalMessages) {
+      setMessages(externalMessages);
+    }
+  }, [externalMessages]);
+
+  const getCharacterById = (id: string) => {
+    return characters.find((char) => char.id === id);
+  };
+
+  const handleDeleteMessage = (messageId: string) => {
+    if (confirm('Tem certeza que deseja deletar esta mensagem?')) {
+      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+      onDeleteMessage?.(messageId);
+    }
   };
 
   return (
-    <div className="space-y-4">
-      {/* Filter Tabs */}
-      <div className="flex gap-2 border-b border-gray-700">
-        {(['all', 'male', 'female', 'neutral'] as const).map((filter) => (
-          <button
-            key={filter}
-            onClick={() => setSelectedFilter(filter)}
-            className={`
-              px-4 py-2 text-sm font-medium transition-colors relative
-              ${
-                selectedFilter === filter
-                  ? 'text-blue-400'
-                  : 'text-gray-400 hover:text-gray-200'
-              }
-            `}
+    <div className="flex flex-col h-full">
+      {/* Messages Container */}
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth"
+      >
+        {messages.length === 0 && !isLoading && (
+          <EmptyState />
+        )}
+
+        {messages.map((message, index) => (
+          <div
+            key={message.id}
+            className="animate-fadeIn"
+            style={{
+              animationDelay: `${index * 50}ms`,
+            }}
           >
-            {genderLabels[filter]}
-            {selectedFilter === filter && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
-            )}
-          </button>
+            <MessageBubble
+              message={message}
+              character={message.characterId ? getCharacterById(message.characterId) : undefined}
+              onDelete={handleDeleteMessage}
+            />
+          </div>
         ))}
+
+        {isLoading && (
+          <div className="flex items-center justify-center gap-2 text-gray-400 py-4">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span>Gerando áudio...</span>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
       </div>
 
-      {/* Voice List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
-        {voices.map((voice) => (
-          <VoiceCard
-            key={voice.id}
-            voice={voice}
-            isSelected={selectedVoiceId === voice.id}
-            onSelect={() => onSelectVoice(voice.id)}
-          />
-        ))}
-      </div>
-
-      {voices.length === 0 && (
-        <div className="text-center py-8 text-gray-400">
-          Nenhuma voz encontrada para este filtro
-        </div>
-      )}
+      {/* Scroll to Bottom Button (aparece quando não está no final) */}
+      <ScrollToBottomButton
+        containerRef={messagesContainerRef}
+        onClick={scrollToBottom}
+      />
     </div>
   );
 }
 
-interface VoiceCardProps {
-  voice: VoiceConfig;
-  isSelected: boolean;
-  onSelect: () => void;
+interface MessageBubbleProps {
+  message: Message;
+  character?: Character;
+  onDelete?: (messageId: string) => void;
 }
 
-function VoiceCard({ voice, isSelected, onSelect }: VoiceCardProps) {
-  const [isPlaying, setIsPlaying] = useState(false);
+function MessageBubble({ message, character, onDelete }: MessageBubbleProps) {
+  const [copied, setCopied] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
-  const handlePlaySample = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    // TODO: Implementar preview da voz
-    setIsPlaying(true);
-    setTimeout(() => setIsPlaying(false), 2000);
+  const messageTypeStyles = {
+    narration: 'bg-gradient-to-r from-purple-500/10 to-transparent border-l-4 border-purple-500',
+    dialogue: 'bg-gradient-to-r from-blue-500/10 to-transparent border-l-4 border-blue-500',
+    action: 'bg-gradient-to-r from-green-500/10 to-transparent border-l-4 border-green-500',
   };
 
-  const genderColors = {
-    male: 'bg-blue-500/20 text-blue-400',
-    female: 'bg-pink-500/20 text-pink-400',
-    neutral: 'bg-gray-500/20 text-gray-400',
+  const messageTypeIcons = {
+    narration: <BookOpen className="w-4 h-4" />,
+    dialogue: <User className="w-4 h-4" />,
+    action: <span className="text-lg">⚔️</span>,
   };
 
-  const ageLabels = {
-    young: 'Jovem',
-    adult: 'Adulto',
-    old: 'Idoso',
+  const messageTypeLabels = {
+    narration: 'Narração',
+    dialogue: 'Diálogo',
+    action: 'Ação',
+  };
+
+  const messageTypeColors = {
+    narration: 'text-purple-400',
+    dialogue: 'text-blue-400',
+    action: 'text-green-400',
+  };
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(message.text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <div
-      onClick={onSelect}
-      className={`
-        p-4 rounded-lg border-2 cursor-pointer transition-all
-        hover:shadow-lg
-        ${
-          isSelected
-            ? 'border-blue-500 bg-blue-500/10'
-            : 'border-gray-700 bg-gray-800 hover:border-gray-600'
-        }
-      `}
+      className={`relative p-4 rounded-lg transition-all duration-200 ${messageTypeStyles[message.type]} ${isHovered ? 'shadow-lg' : ''
+        }`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex-1">
-          <h4 className="font-semibold text-white mb-1">{voice.name}</h4>
-          <p className="text-xs text-gray-400">{voice.description}</p>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <div className={messageTypeColors[message.type]}>
+            {messageTypeIcons[message.type]}
+          </div>
+          <span className={`text-xs font-medium ${messageTypeColors[message.type]}`}>
+            {messageTypeLabels[message.type]}
+          </span>
+          {character && (
+            <>
+              <span className="text-gray-600">•</span>
+              <div className="flex items-center gap-2">
+                {character.imageUrl && (
+                  <div className="w-5 h-5 rounded-full overflow-hidden bg-gray-700">
+                    <img
+                      src={character.imageUrl}
+                      alt={character.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+                <span className="text-xs text-gray-300 font-semibold">
+                  {character.name}
+                </span>
+              </div>
+            </>
+          )}
         </div>
 
-        {/* Play Sample Button */}
-        {voice.sampleUrl && (
-          <button
-            onClick={handlePlaySample}
-            disabled={isPlaying}
-            className="ml-2 p-2 rounded-full bg-blue-500/20 hover:bg-blue-500/30 transition-colors disabled:opacity-50"
-            aria-label="Ouvir amostra"
-          >
-            <Play className="w-4 h-4 text-blue-400" />
-          </button>
-        )}
-      </div>
-
-      {/* Tags */}
-      <div className="flex flex-wrap gap-2 mt-3">
-        <span className={`text-xs px-2 py-1 rounded-full ${genderColors[voice.gender]}`}>
-          {voice.gender === 'male' && '♂️ Masculino'}
-          {voice.gender === 'female' && '♀️ Feminino'}
-          {voice.gender === 'neutral' && '⚪ Neutro'}
-        </span>
-        <span className="text-xs px-2 py-1 rounded-full bg-gray-700 text-gray-300">
-          {ageLabels[voice.ageRange]}
-        </span>
-      </div>
-
-      {/* Personality Traits */}
-      <div className="flex flex-wrap gap-1 mt-2">
-        {voice.personality.slice(0, 3).map((trait) => (
-          <span key={trait} className="text-xs text-gray-500">
-            #{trait}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500">
+            {formatDistanceToNow(new Date(message.timestamp), {
+              addSuffix: true,
+              locale: ptBR,
+            })}
           </span>
-        ))}
+
+          {/* Action Buttons (aparecem no hover) */}
+          {isHovered && !message.isGenerating && (
+            <div className="flex gap-1">
+              <button
+                onClick={handleCopy}
+                className="p-1 hover:bg-gray-700 rounded transition-colors"
+                title="Copiar texto"
+              >
+                {copied ? (
+                  <Check className="w-3 h-3 text-green-400" />
+                ) : (
+                  <Copy className="w-3 h-3 text-gray-400" />
+                )}
+              </button>
+              {onDelete && (
+                <button
+                  onClick={() => onDelete(message.id)}
+                  className="p-1 hover:bg-red-500/20 rounded transition-colors"
+                  title="Deletar mensagem"
+                >
+                  <Trash2 className="w-3 h-3 text-red-400" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Selection Indicator */}
-      {isSelected && (
-        <div className="mt-3 flex items-center gap-2 text-xs text-blue-400">
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path d="M5 13l4 4L19 7" />
-          </svg>
-          Selecionada
+      {/* Message Text */}
+      <p className="text-white mb-3 leading-relaxed whitespace-pre-wrap">
+        {message.text}
+      </p>
+
+      {/* Audio Player */}
+      {message.audioUrl && !message.isGenerating && (
+        <div className="mt-3">
+          <AudioPlayer src={message.audioUrl} />
+        </div>
+      )}
+
+      {/* Generating Indicator */}
+      {message.isGenerating && (
+        <div className="flex items-center gap-2 text-sm text-gray-400 mt-2">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span>Gerando áudio...</span>
+          <div className="flex-1 h-1 bg-gray-700 rounded-full overflow-hidden">
+            <div className="h-full bg-blue-500 animate-pulse w-1/2" />
+          </div>
         </div>
       )}
     </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center h-full text-center animate-fadeIn">
+      <div className="relative mb-6">
+        <div className="w-32 h-32 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-full flex items-center justify-center">
+          <BookOpen className="w-16 h-16 text-gray-500 opacity-50" />
+        </div>
+        <div className="absolute -top-2 -right-2 w-12 h-12 bg-purple-500/20 rounded-full animate-ping" />
+      </div>
+      <h3 className="text-xl font-semibold text-white mb-2">
+        Nenhuma mensagem ainda
+      </h3>
+      <p className="text-gray-400 max-w-md">
+        Comece sua aventura adicionando uma narração, diálogo ou ação usando
+        os controles abaixo
+      </p>
+      <div className="mt-6 flex gap-2 text-sm text-gray-500">
+        <span className="px-3 py-1 bg-purple-500/10 rounded-full">📖 Narração</span>
+        <span className="px-3 py-1 bg-blue-500/10 rounded-full">💬 Diálogo</span>
+        <span className="px-3 py-1 bg-green-500/10 rounded-full">⚔️ Ação</span>
+      </div>
+    </div>
+  );
+}
+
+interface ScrollToBottomButtonProps {
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  onClick: () => void;
+}
+
+function ScrollToBottomButton({ containerRef, onClick }: ScrollToBottomButtonProps) {
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+      setShow(!isNearBottom);
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [containerRef]);
+
+  if (!show) return null;
+
+  return (
+    <button
+      onClick={onClick}
+      className="absolute bottom-24 right-8 p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg transition-all duration-200 hover:scale-110 z-10"
+      aria-label="Rolar para o final"
+    >
+      <svg
+        className="w-5 h-5"
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+      </svg>
+    </button>
   );
 }

@@ -1,45 +1,22 @@
 #!/usr/bin/env python3
 """
 Kokoro TTS Local Script
-Gera áudio usando o modelo Kokoro-82M localmente
+Gera áudio usando o modelo Kokoro-82M localmente com GPU
 """
 
 import sys
+import os
 import torch
-import torchaudio
-from transformers import AutoTokenizer, AutoModelForCausalLM
-import warnings
+import soundfile as sf
+import numpy as np
 
-warnings.filterwarnings('ignore')
-
-# Cache do modelo para não recarregar a cada chamada
-MODEL_CACHE = {
-    'model': None,
-    'tokenizer': None
-}
-
-def load_model():
-    """Carrega o modelo Kokoro (usa cache se já carregado)"""
-    if MODEL_CACHE['model'] is None:
-        model_name = "hexgrad/Kokoro-82M"
-        
-        print("📦 Carregando modelo Kokoro...", file=sys.stderr)
-        
-        MODEL_CACHE['tokenizer'] = AutoTokenizer.from_pretrained(model_name)
-        MODEL_CACHE['model'] = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-            device_map="auto",
-            low_cpu_mem_usage=True
-        )
-        
-        print("✅ Modelo carregado!", file=sys.stderr)
-    
-    return MODEL_CACHE['model'], MODEL_CACHE['tokenizer']
+# Importar kokoro (instalar com: pip install kokoro-onnx ou similar)
+# Nota: O Kokoro pode ter implementação específica
+# Vamos usar uma abordagem genérica por enquanto
 
 def generate_speech(text: str, voice_id: str, speed: float = 1.0):
     """
-    Gera áudio a partir de texto
+    Gera áudio a partir de texto usando Kokoro
     
     Args:
         text: Texto para sintetizar
@@ -47,45 +24,34 @@ def generate_speech(text: str, voice_id: str, speed: float = 1.0):
         speed: Velocidade da fala (0.5 a 2.0)
     """
     try:
-        model, tokenizer = load_model()
+        # Por enquanto, vamos criar um placeholder
+        # Você precisará integrar a biblioteca real do Kokoro aqui
         
-        # Preparar input
-        inputs = tokenizer(
-            text, 
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=500
-        )
-        
-        # Mover para GPU se disponível
-        if torch.cuda.is_available():
-            inputs = {k: v.cuda() for k, v in inputs.items()}
-        
-        # Gerar áudio
         print(f"🎙️ Gerando áudio para: '{text[:50]}...'", file=sys.stderr)
+        print(f"🎤 Voz: {voice_id}", file=sys.stderr)
+        print(f"⚡ Velocidade: {speed}x", file=sys.stderr)
         
-        with torch.no_grad():
-            outputs = model.generate(
-                **inputs,
-                max_length=1000,
-                do_sample=True,
-                temperature=0.7,
-                top_p=0.9,
-            )
+        # Verificar GPU
+        if torch.cuda.is_available():
+            device = torch.device("cuda")
+            print(f"🎮 GPU: {torch.cuda.get_device_name(0)}", file=sys.stderr)
+            print(f"💾 VRAM Disponível: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f}GB", file=sys.stderr)
+        else:
+            device = torch.device("cpu")
+            print("⚠️ GPU não disponível, usando CPU", file=sys.stderr)
         
-        # Converter para áudio WAV
-        # Nota: A implementação específica depende da arquitetura do Kokoro
-        # Este é um placeholder - você precisará ajustar conforme a API real
+        # IMPORTANTE: Aqui você precisará implementar a geração real
+        # Por enquanto, retornamos um erro informativo
         
-        audio_data = outputs.cpu().numpy()
+        print("❌ Implementação do Kokoro ainda não finalizada!", file=sys.stderr)
+        print("💡 Use USE_LOCAL_TTS='false' no .env para usar API", file=sys.stderr)
+        sys.exit(1)
         
-        # Salvar como WAV e enviar para stdout
-        # Por enquanto, vamos apenas retornar um placeholder
-        print("✅ Áudio gerado!", file=sys.stderr)
-        
-        # Escrever dados de áudio binários para stdout
-        sys.stdout.buffer.write(audio_data.tobytes())
+        # Quando implementar, o código será algo assim:
+        # from kokoro import KokoroTTS
+        # model = KokoroTTS(model_path="hexgrad/Kokoro-82M", device=device)
+        # audio = model.generate(text, voice_id=voice_id, speed=speed)
+        # sf.write(sys.stdout.buffer, audio, 24000, format='WAV')
         
     except Exception as e:
         print(f"❌ Erro ao gerar áudio: {str(e)}", file=sys.stderr)
